@@ -54,24 +54,19 @@ class VehiculoSerializer(serializers.ModelSerializer):
 
 
 class CitaSerializer(serializers.ModelSerializer):
-
-    vehiculo = serializers.PrimaryKeyRelatedField(queryset=Vehiculo.objects.all())
-    mecanico_asignado = serializers.PrimaryKeyRelatedField(
-        queryset=Mecanico.objects.all(), 
-        allow_null=True, 
-        required=False
-    )
-
-
     vehiculo_detalle = serializers.StringRelatedField(source='vehiculo', read_only=True)
     mecanico_nombre = serializers.StringRelatedField(source='mecanico_asignado', read_only=True)
+    
+    
+    tiene_historial = serializers.BooleanField(source='historial_detalle', read_only=True, default=False)
 
     class Meta:
         model = Cita
         fields = [
             'id', 'fecha_hora', 'motivo', 'estado', 
             'vehiculo', 'vehiculo_detalle', 
-            'mecanico_asignado', 'mecanico_nombre'
+            'mecanico_asignado', 'mecanico_nombre',
+            'tiene_historial'
         ]
 
 
@@ -90,12 +85,14 @@ class ServicioSerializer(serializers.ModelSerializer):
 
 
 class HistorialSerializer(serializers.ModelSerializer):
-
-    mecanico = serializers.PrimaryKeyRelatedField(
-        queryset=Mecanico.objects.all(), 
-        allow_null=True, 
-        required=False
-    )
+    
+    vehiculo_patente = serializers.CharField(source='cita.vehiculo.patente', read_only=True)
+    cliente_nombre = serializers.CharField(source='cita.vehiculo.cliente.usuario.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Historial
+        fields = ['id', 'cita', 'detalle_trabajo', 'costo_final', 'fecha_realizacion', 'mecanico', 'vehiculo_patente', 'cliente_nombre']
+        read_only_fields = ['fecha_realizacion', 'mecanico'] 
     
 
     mecanico_nombre = serializers.StringRelatedField(source='mecanico', read_only=True)
@@ -105,22 +102,22 @@ class HistorialSerializer(serializers.ModelSerializer):
         fields = ['id', 'detalle_trabajo', 'costo_final', 'fecha_realizacion', 'mecanico', 'mecanico_nombre']
 
 class RegistroUnificadoSerializer(serializers.Serializer):
-    # Campos de Usuario (Comunes)
+    
     username = serializers.CharField(required=True)
     password = serializers.CharField(write_only=True, required=True)
     email = serializers.EmailField(required=True)
     first_name = serializers.CharField(required=True)
     last_name = serializers.CharField(required=True)
     
-    # Selector de tipo de usuario
+    
     tipo_usuario = serializers.ChoiceField(choices=['cliente', 'mecanico'], required=True)
 
-    # Campos Específicos (Opcionales en la definición, obligatorios según lógica)
+    
     telefono = serializers.CharField(required=False)
-    direccion = serializers.CharField(max_length=100, required=False, allow_blank=True)  # Solo para Cliente
+    direccion = serializers.CharField(max_length=100, required=False, allow_blank=True)  
     marcas = serializers.PrimaryKeyRelatedField(
         queryset=Marca.objects.all(), many=True, required=False
-    ) # Solo para Mecánico
+    ) 
 
     def validate(self, data):
         """
@@ -129,13 +126,13 @@ class RegistroUnificadoSerializer(serializers.Serializer):
         """
         tipo = data.get('tipo_usuario')
         
-        # Validar duplicidad de usuario o email
+        
         if User.objects.filter(username=data.get('username')).exists():
             raise serializers.ValidationError({"username": "Este nombre de usuario ya existe."})
         if User.objects.filter(email=data.get('email')).exists():
             raise serializers.ValidationError({"email": "Este correo ya está registrado."})
 
-        # Validaciones específicas por rol
+        
         if tipo == 'cliente':
             if not data.get('direccion'):
                 raise serializers.ValidationError({"direccion": "La dirección es obligatoria para clientes."})
@@ -145,7 +142,7 @@ class RegistroUnificadoSerializer(serializers.Serializer):
         elif tipo == 'mecanico':
             if not data.get('telefono'):
                 raise serializers.ValidationError({"telefono": "El teléfono es obligatorio."})
-            # Nota: 'marcas' puede ser opcional (blank=True en tu modelo)
+            
         
         return data
 
@@ -153,7 +150,7 @@ class RegistroUnificadoSerializer(serializers.Serializer):
         """
         Crea el Usuario y el Perfil correspondiente dentro de una transacción atómica.
         """
-        # Extraemos los datos del User y el tipo
+        
         tipo = validated_data.pop('tipo_usuario')
         password = validated_data.pop('password')
         username = validated_data.pop('username')
@@ -161,13 +158,13 @@ class RegistroUnificadoSerializer(serializers.Serializer):
         first_name = validated_data.pop('first_name')
         last_name = validated_data.pop('last_name')
         
-        # Datos específicos
+        
         telefono = validated_data.get('telefono')
         direccion = validated_data.get('direccion')
         marcas = validated_data.get('marcas', [])
 
         with transaction.atomic():
-            # 1. Crear Usuario Django
+            
             user = User.objects.create_user(
                 username=username,
                 email=email,
@@ -176,7 +173,7 @@ class RegistroUnificadoSerializer(serializers.Serializer):
                 last_name=last_name
             )
 
-            # 2. Crear el Perfil según el tipo
+            
             if tipo == 'cliente':
                 Cliente.objects.create(
                     usuario=user,
@@ -187,7 +184,7 @@ class RegistroUnificadoSerializer(serializers.Serializer):
                 mecanico = Mecanico.objects.create(
                     usuario=user,
                     telefono=telefono
-                    # aprobado=False es por defecto en el modelo
+                    
                 )
                 if marcas:
                     mecanico.marcas.set(marcas)

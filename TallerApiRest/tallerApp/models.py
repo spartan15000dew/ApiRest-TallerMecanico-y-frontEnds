@@ -105,11 +105,15 @@ class Servicio(models.Model):
         return self.nombre_servicio
 
 class Historial(models.Model):
+    # Vinculamos el historial a una Cita específica
+    cita = models.OneToOneField(Cita, on_delete=models.CASCADE, related_name='historial_detalle')
+    
     detalle_trabajo = models.TextField() 
     costo_final = models.CharField(max_length=45)
-    fecha_realizacion = models.DateField()
+    fecha_realizacion = models.DateField(auto_now_add=True) # Automático al crearse
 
+    # El mecánico lo sacamos de la Cita, pero podemos dejarlo aquí si quieres redundancia
     mecanico = models.ForeignKey(Mecanico, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
-        return f"Historial {self.id} - {self.fecha_realizacion}"
+        return f"Historial Cita #{self.cita.id} - {self.fecha_realizacion}"
