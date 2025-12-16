@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axiosConfig';
+import Navbar from '../components/Navbar'; // <--- IMPORTANTE
 
 function VehiculosPage() {
     const [vehiculos, setVehiculos] = useState([]);
@@ -11,12 +12,12 @@ function VehiculosPage() {
 
     const cargarVehiculos = async () => {
         try {
-            const res = await api.get('vehiculos/');
+            const res = await api.get('api/vehiculos/'); // Corregido a api/
             setVehiculos(res.data);
         } catch (error) { console.error(error); }
     };
 
-   const handleCrear = async (e) => {
+    const handleCrear = async (e) => {
         e.preventDefault();
         try {
             await api.post('api/vehiculos/', nuevoAuto);
@@ -25,12 +26,8 @@ function VehiculosPage() {
             cargarVehiculos();
         } catch (error) {
             console.error(error);
-            // LÓGICA MEJORADA DE ERRORES
             if (error.response && error.response.data) {
-                // Si el backend nos dice qué está mal, mostramos eso
-                const mensajes = Object.entries(error.response.data)
-                    .map(([key, value]) => `${key}: ${value}`)
-                    .join('\n');
+                const mensajes = Object.entries(error.response.data).map(([key, value]) => `${key}: ${value}`).join('\n');
                 alert(`Error:\n${mensajes}`);
             } else {
                 alert('Error al conectar con el servidor.');
@@ -39,35 +36,63 @@ function VehiculosPage() {
     };
 
     return (
-        <div className="container mt-4">
-            <div className="row">
-                <div className="col-md-4">
-                    <div className="card p-3">
-                        <h4>Registrar Vehículo</h4>
-                        <form onSubmit={handleCrear}>
-                            <input className="form-control mb-2" placeholder="Patente" value={nuevoAuto.patente} onChange={e=>setNuevoAuto({...nuevoAuto, patente: e.target.value})} required/>
-                            <input className="form-control mb-2" placeholder="Marca" value={nuevoAuto.marca} onChange={e=>setNuevoAuto({...nuevoAuto, marca: e.target.value})} required/>
-                            <input className="form-control mb-2" placeholder="Modelo" value={nuevoAuto.modelo} onChange={e=>setNuevoAuto({...nuevoAuto, modelo: e.target.value})} required/>
-                            <input type="number" className="form-control mb-2" placeholder="Año" value={nuevoAuto.año} onChange={e=>setNuevoAuto({...nuevoAuto, año: e.target.value})} required/>
-                            <button className="btn btn-success w-100">Guardar</button>
-                        </form>
-                    </div>
-                </div>
-                <div className="col-md-8">
-                    <h4>Mis Vehículos</h4>
-                    <div className="row">
-                        {vehiculos.map(v => (
-                            <div key={v.id} className="col-md-6 mb-2">
-                                <div className="card p-3 border-primary">
-                                    <h5>{v.marca} {v.modelo}</h5>
-                                    <p className="mb-0 text-muted">Patente: {v.patente} - Año: {v.año}</p>
-                                </div>
+        <>
+            <Navbar />
+            <div className="container mt-4">
+                <h2 className="mb-4 border-bottom pb-2 fw-bold">🚘 Gestión de Vehículos</h2>
+                
+                <div className="row">
+                    {/* COLUMNA IZQUIERDA: FORMULARIO */}
+                    <div className="col-md-4 mb-4">
+                        <div className="card shadow border-0">
+                            <div className="card-header bg-primary text-white fw-bold">
+                                + Nuevo Vehículo
                             </div>
-                        ))}
+                            <div className="card-body bg-light">
+                                <form onSubmit={handleCrear}>
+                                    <div className="mb-2">
+                                        <input className="form-control" placeholder="Patente (Ej: ABCD-12)" value={nuevoAuto.patente} onChange={e=>setNuevoAuto({...nuevoAuto, patente: e.target.value})} required/>
+                                    </div>
+                                    <div className="mb-2">
+                                        <input className="form-control" placeholder="Marca (Ej: Toyota)" value={nuevoAuto.marca} onChange={e=>setNuevoAuto({...nuevoAuto, marca: e.target.value})} required/>
+                                    </div>
+                                    <div className="mb-2">
+                                        <input className="form-control" placeholder="Modelo (Ej: Yaris)" value={nuevoAuto.modelo} onChange={e=>setNuevoAuto({...nuevoAuto, modelo: e.target.value})} required/>
+                                    </div>
+                                    <div className="mb-3">
+                                        <input type="number" className="form-control" placeholder="Año (Ej: 2020)" value={nuevoAuto.año} onChange={e=>setNuevoAuto({...nuevoAuto, año: e.target.value})} required/>
+                                    </div>
+                                    <button className="btn btn-primary w-100 fw-bold">Guardar Vehículo</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* COLUMNA DERECHA: LISTA */}
+                    <div className="col-md-8">
+                        <div className="row">
+                            {vehiculos.length === 0 ? (
+                                <div className="col-12 text-center text-muted mt-5">
+                                    <h4>No tienes vehículos registrados aún.</h4>
+                                    <p>Usa el formulario de la izquierda para agregar uno.</p>
+                                </div>
+                            ) : vehiculos.map(v => (
+                                <div key={v.id} className="col-md-6 mb-3">
+                                    <div className="card h-100 shadow-sm border-start border-5 border-primary">
+                                        <div className="card-body">
+                                            <h4 className="card-title fw-bold text-dark">{v.marca} {v.modelo}</h4>
+                                            <hr />
+                                            <p className="mb-1 text-muted">Patente: <strong className="text-dark bg-warning px-2 rounded">{v.patente}</strong></p>
+                                            <p className="mb-0 text-muted">Año: {v.año}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }
 
