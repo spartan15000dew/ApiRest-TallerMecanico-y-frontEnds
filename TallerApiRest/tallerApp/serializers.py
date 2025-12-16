@@ -120,10 +120,6 @@ class RegistroUnificadoSerializer(serializers.Serializer):
     ) 
 
     def validate(self, data):
-        """
-        Validación personalizada para asegurar que vengan los datos
-        correctos según el tipo de usuario seleccionado.
-        """
         tipo = data.get('tipo_usuario')
         
         
@@ -147,10 +143,6 @@ class RegistroUnificadoSerializer(serializers.Serializer):
         return data
 
     def create(self, validated_data):
-        """
-        Crea el Usuario y el Perfil correspondiente dentro de una transacción atómica.
-        """
-        
         tipo = validated_data.pop('tipo_usuario')
         password = validated_data.pop('password')
         username = validated_data.pop('username')

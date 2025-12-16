@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
-# Create your models here.
 telefono_validador = RegexValidator(
     regex=r'^\+?\d{7,15}$', 
     message="Ingrese un número de teléfono válido (7-15 dígitos, opcional +)."
@@ -105,14 +104,12 @@ class Servicio(models.Model):
         return self.nombre_servicio
 
 class Historial(models.Model):
-    # Vinculamos el historial a una Cita específica
     cita = models.OneToOneField(Cita, on_delete=models.CASCADE, related_name='historial_detalle')
     
     detalle_trabajo = models.TextField() 
     costo_final = models.CharField(max_length=45)
-    fecha_realizacion = models.DateField(auto_now_add=True) # Automático al crearse
+    fecha_realizacion = models.DateField(auto_now_add=True)
 
-    # El mecánico lo sacamos de la Cita, pero podemos dejarlo aquí si quieres redundancia
     mecanico = models.ForeignKey(Mecanico, on_delete=models.SET_NULL, null=True, blank=True)
     
     def __str__(self):
