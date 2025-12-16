@@ -6,17 +6,16 @@ import { useNavigate } from 'react-router-dom';
 function RegisterPage() {
     const navigate = useNavigate();
     
-    // Estado inicial con todos los campos necesarios según tu serializer
+    // Estado inicial
     const [formData, setFormData] = useState({
         username: '',
         password: '',
         email: '',
         first_name: '',
         last_name: '',
-        tipo_usuario: 'cliente', // Por defecto registramos clientes
+        tipo_usuario: 'cliente', 
         telefono: '',
-        direccion: '', // Solo para cliente
-        // marcas: [] // Opcional para mecánicos (requeriría otra lógica de UI)
+        direccion: '', 
     });
 
     const [error, setError] = useState(null);
@@ -28,33 +27,29 @@ function RegisterPage() {
         });
     };
 
-const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
 
         try {
-            const response = await api.post('registro/', formData);
+            // --- CORRECCIÓN AQUÍ: Agregamos 'auth/' ---
+            const response = await api.post('api/auth/registro/', formData);
+            
             alert(`¡Usuario ${response.data.usuario} creado con éxito! Ahora inicia sesión.`);
             navigate('/login'); 
         } catch (err) {
             console.error(err);
             
-            // Verificamos si hay respuesta del servidor
             if (err.response && err.response.data) {
                 const serverErrors = err.response.data;
 
-                // 1. Si el error es del EMAIL, armamos el mensaje personalizado
                 if (serverErrors.email) {
-                    // Usamos formData.email, que es lo que el usuario escribió en el input
                     setError(`El correo ${formData.email} ya está registrado.`);
                 } 
-                // 2. Si el error es del NOMBRE DE USUARIO
                 else if (serverErrors.username) {
                     setError(`El usuario ${formData.username} ya está ocupado.`);
                 }
-                // 3. Cualquier otro error
                 else {
-                    // Tomamos el primer error que encontremos y lo mostramos limpio
                     const primerError = Object.values(serverErrors).flat()[0];
                     setError(primerError || "Error en los datos ingresados.");
                 }
@@ -85,7 +80,7 @@ const handleSubmit = async (e) => {
                     </select>
                 </div>
 
-                {/* --- DATOS COMUNES DE USUARIO --- */}
+                {/* --- DATOS COMUNES --- */}
                 <div className="row">
                     <div className="col-md-6 mb-3">
                         <input type="text" name="first_name" placeholder="Nombre" className="form-control" required onChange={handleChange} />
@@ -108,7 +103,7 @@ const handleSubmit = async (e) => {
                 <hr />
                 <h5>Datos de Contacto</h5>
 
-                {/* --- CAMPO COMPARTIDO: TELÉFONO --- */}
+                {/* --- TELÉFONO --- */}
                 <div className="mb-3">
                     <label className="form-label">Teléfono</label>
                     <input 
@@ -122,7 +117,7 @@ const handleSubmit = async (e) => {
                     <small className="text-muted">Formato: +569...</small>
                 </div>
 
-                {/* --- CAMPO CONDICIONAL: DIRECCIÓN (SOLO CLIENTES) --- */}
+                {/* --- DIRECCIÓN (SOLO CLIENTES) --- */}
                 {formData.tipo_usuario === 'cliente' && (
                     <div className="mb-3">
                         <label className="form-label">Dirección</label>
@@ -131,13 +126,13 @@ const handleSubmit = async (e) => {
                             name="direccion" 
                             className="form-control" 
                             placeholder="Calle 123, Ciudad" 
-                            required // HTML validation solo si está visible
+                            required 
                             onChange={handleChange} 
                         />
                     </div>
                 )}
 
-                {/* --- CAMPO CONDICIONAL: MARCAS (SOLO MECÁNICOS) --- */}
+                {/* --- MENSAJE PARA MECÁNICOS --- */}
                 {formData.tipo_usuario === 'mecanico' && (
                     <div className="alert alert-info">
                         Nota: Podrás añadir tus marcas de especialidad en tu perfil más tarde.

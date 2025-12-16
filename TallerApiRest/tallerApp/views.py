@@ -1,82 +1,273 @@
-from rest_framework import viewsets
+from django.shortcuts import get_object_or_404
+from django.db.models import Q
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
-from .serializers import RegistroUnificadoSerializer
-from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
-from .models import Marca, Cliente, Mecanico, Vehiculo, Cita, Servicio, Historial
-from .serializers import (
-    MarcaSerializer, ClienteSerializer, MecanicoSerializer, 
-    VehiculoSerializer, CitaSerializer, ServicioSerializer, HistorialSerializer
-)
+from rest_framework.authtoken.views import ObtainAuthToken
 
-class MarcaViewSet(viewsets.ModelViewSet):
-    queryset = Marca.objects.all()
-    serializer_class = MarcaSerializer
+from .models import *
+from .serializers import *
+from .permissions import EsDueñoVehiculo, EsMecanicoAsignado
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 
-class ClienteViewSet(viewsets.ModelViewSet):
-    queryset = Cliente.objects.all()
-    serializer_class = ClienteSerializer
 
-class MecanicoViewSet(viewsets.ModelViewSet):
-    queryset = Mecanico.objects.all()
-    serializer_class = MecanicoSerializer
+class CustomLoginView(ObtainAuthToken):
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            token, created = Token.objects.get_or_create(user=user)
+            
+            # Lógica corregida de roles
+            rol = ''
+            
+            # 1. Prioridad: Si es superusuario/staff de Django -> 'administrador'
+            # (Esto soluciona el problema de que no te salga el menú)
+            if user.is_staff:
+                rol = 'administrador'
+            
+            # 2. Si tiene perfil de mecánico -> 'mecanico'
+            elif hasattr(user, 'perfil_mecanico'): 
+                rol = 'mecanico'
+            
+            # 3. Si tiene perfil de cliente -> 'cliente'
+            elif hasattr(user, 'perfil_cliente'): 
+                rol = 'cliente'
 
-class VehiculoViewSet(viewsets.ModelViewSet):
-    queryset = Vehiculo.objects.all()
-    serializer_class = VehiculoSerializer
+            return Response({
+                'token': token.key,
+                'user_id': user.pk,
+                'username': user.username,
+                'rol': rol
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CitaViewSet(viewsets.ModelViewSet):
-    queryset = Cita.objects.all()
-    serializer_class = CitaSerializer
-
-class ServicioViewSet(viewsets.ModelViewSet):
-    queryset = Servicio.objects.all()
-    serializer_class = ServicioSerializer
-
-class HistorialViewSet(viewsets.ModelViewSet):
-    queryset = Historial.objects.all()
-    serializer_class = HistorialSerializer
-
-class RegistroUsuarioView(APIView):
-    permission_classes = [AllowAny] # Permite que usuarios no autenticados se registren
+class RegistroUnificadoView(APIView):
+    permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegistroUnificadoSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
+            token, _ = Token.objects.get_or_create(user=user)
             return Response({
                 "mensaje": "Usuario creado exitosamente",
-                "usuario": user.username,
-                "tipo": request.data.get('tipo_usuario')
+                "token": token.key,
+                "usuario": user.username
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CustomLoginView(ObtainAuthToken):
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
 
-        # Determinar el rol
-        rol = "desconocido"
-        id_perfil = None
+
+
+class VehiculoList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
         
-        # Verificamos los related_name definidos en tus modelos
+        user = request.user
         if hasattr(user, 'perfil_cliente'):
-            rol = 'cliente'
-            id_perfil = user.perfil_cliente.id
-        elif hasattr(user, 'perfil_mecanico'):
-            rol = 'mecanico'
-            id_perfil = user.perfil_mecanico.id
+            vehiculos = Vehiculo.objects.filter(cliente=user.perfil_cliente)
+        else:
+            vehiculos = Vehiculo.objects.all()
+        
+        serializer = VehiculoSerializer(vehiculos, many=True)
+        return Response(serializer.data)
 
-        return Response({
-            'token': token.key,
-            'user_id': user.pk,
-            'username': user.username,
-            'rol': rol,
-            'id_perfil': id_perfil # Útil para luego hacer fetch de datos del perfil
-        })
+    def post(self, request):
+        serializer = VehiculoSerializer(data=request.data)
+        if serializer.is_valid():
+            
+            if hasattr(request.user, 'perfil_cliente'):
+                serializer.save(cliente=request.user.perfil_cliente)
+            else:
+                serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class VehiculoDetail(APIView):
+    permission_classes = [IsAuthenticated, EsDueñoVehiculo]
+
+    def get_object(self, pk):
+        
+        obj = get_object_or_404(Vehiculo, pk=pk)
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def get(self, request, pk):
+        vehiculo = self.get_object(pk)
+        serializer = VehiculoSerializer(vehiculo)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        vehiculo = self.get_object(pk)
+        serializer = VehiculoSerializer(vehiculo, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        vehiculo = self.get_object(pk)
+        vehiculo.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+class CitaList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        citas = Cita.objects.all()
+
+        
+        if hasattr(user, 'perfil_cliente'):
+            citas = citas.filter(vehiculo__cliente=user.perfil_cliente)
+        elif hasattr(user, 'perfil_mecanico'):
+            citas = citas.filter(mecanico_asignado=user.perfil_mecanico)
+        
+        
+        estado = request.query_params.get('estado')
+        if estado:
+            citas = citas.filter(estado=estado)
+
+        serializer = CitaSerializer(citas, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = CitaSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CitaDetail(APIView):
+    permission_classes = [IsAuthenticated, EsMecanicoAsignado]
+
+    def get_object(self, pk):
+        obj = get_object_or_404(Cita, pk=pk)
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def get(self, request, pk):
+        cita = self.get_object(pk)
+        serializer = CitaSerializer(cita)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        cita = self.get_object(pk)
+        serializer = CitaSerializer(cita, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class FinalizarCitaView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        cita = get_object_or_404(Cita, pk=pk)
+        
+        
+        if hasattr(request.user, 'perfil_mecanico') and cita.mecanico_asignado != request.user.perfil_mecanico:
+            return Response({"error": "No tienes permiso para finalizar esta cita."}, status=status.HTTP_403_FORBIDDEN)
+
+        detalle = request.data.get('detalle_trabajo')
+        costo = request.data.get('costo_final')
+
+        if not detalle or not costo:
+            return Response({"error": "Faltan datos: detalle_trabajo y costo_final son requeridos"}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            cita.estado = 'Completada'
+            cita.save()
+
+            Historial.objects.create(
+                cita=cita,
+                detalle_trabajo=detalle,
+                costo_final=costo,
+                mecanico=cita.mecanico_asignado
+            )
+        
+        return Response({"mensaje": "Cita finalizada y guardada en historial."}, status=status.HTTP_200_OK)
+
+
+
+
+class HistorialList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        historiales = Historial.objects.all()
+
+        
+        if hasattr(user, 'perfil_cliente'):
+            historiales = historiales.filter(cita__vehiculo__cliente=user.perfil_cliente)
+        elif hasattr(user, 'perfil_mecanico'):
+            historiales = historiales.filter(mecanico=user.perfil_mecanico)
+
+        
+        search_query = request.query_params.get('search')
+        if search_query:
+            historiales = historiales.filter(
+                Q(cita__vehiculo__patente__icontains=search_query) |
+                Q(cita__vehiculo__cliente__usuario__first_name__icontains=search_query) |
+                Q(cita__vehiculo__cliente__usuario__last_name__icontains=search_query) |
+                Q(mecanico__usuario__first_name__icontains=search_query)
+            )
+
+        serializer = HistorialSerializer(historiales, many=True)
+        return Response(serializer.data)
+
+class MecanicoList(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        mecanicos = Mecanico.objects.filter(aprobado=True)
+        serializer = MecanicoSerializer(mecanicos, many=True)
+        return Response(serializer.data)
+    
+
+
+class AdminMarcaList(APIView):
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        marcas = Marca.objects.all()
+        serializer = MarcaSerializer(marcas, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = MarcaSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class AdminMecanicosPendientes(APIView):
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request):
+        mecanicos = Mecanico.objects.filter(aprobado=False)
+        serializer = MecanicoSerializer(mecanicos, many=True)
+        return Response(serializer.data)
+
+class AprobarMecanicoView(APIView):
+
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def post(self, request, pk):
+        mecanico = get_object_or_404(Mecanico, pk=pk)
+        mecanico.aprobado = True
+        mecanico.save()
+        return Response({"mensaje": f"Mecánico {mecanico.usuario.username} aprobado exitosamente."})

@@ -13,12 +13,12 @@ function LoginPage() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            // POST a tu endpoint de login personalizado
-            const response = await api.post('login/', credentials);
-            
-            const { token, rol, user_id, id_perfil } = response.data;
+    e.preventDefault();
+    try {
+        // CORRECCIÓN: Agregamos 'auth/' antes de login
+        const response = await api.post('api/auth/login/', credentials);
+        
+        const { token, rol, user_id, id_perfil } = response.data;
 
             // Guardamos todo lo útil en localStorage
             localStorage.setItem('token', token);

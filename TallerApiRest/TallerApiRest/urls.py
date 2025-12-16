@@ -1,42 +1,38 @@
-"""
-URL configuration for TallerApiRest project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-# IMPORTANTE: Asegúrate de que 'tallerApp' sea el nombre real de tu carpeta de aplicación
-from tallerApp import views 
-
-# Creamos el router
-router = DefaultRouter()
-
-# Registramos las rutas usando los ViewSets que SI existen en tu views.py
-router.register(r'marcas', views.MarcaViewSet, basename='marca')
-router.register(r'clientes', views.ClienteViewSet, basename='cliente')
-router.register(r'mecanicos', views.MecanicoViewSet, basename='mecanico') # Antes buscabas 'empleadoView', ahora es esto
-router.register(r'vehiculos', views.VehiculoViewSet, basename='vehiculo')
-router.register(r'citas', views.CitaViewSet, basename='cita')
-router.register(r'servicios', views.ServicioViewSet, basename='servicio')
-router.register(r'historial', views.HistorialViewSet, basename='historial')
+from django.urls import path
+from tallerApp.views import (
+    RegistroUnificadoView, CustomLoginView,
+    VehiculoList, VehiculoDetail,
+    CitaList, CitaDetail, FinalizarCitaView,
+    HistorialList, MecanicoList,
+    # Vistas de Admin
+    AdminMarcaList, AdminMecanicosPendientes, AprobarMecanicoView
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    # Incluimos las URLs generadas por el router
-    path('', include(router.urls)),
-    path('api/registro/', views.RegistroUsuarioView.as_view(), name='registro'),
-    path('api/login/', views.CustomLoginView.as_view(), name='login'),
- 
+    path('admin/', admin.site.urls), # Panel clásico de Django
+
+    # --- AHORA TODO EMPIEZA CON 'api/' ---
+
+    # Autenticación
+    path('api/auth/registro/', RegistroUnificadoView.as_view(), name='registro'),
+    path('api/auth/login/', CustomLoginView.as_view(), name='login'),
+
+    # Vehículos
+    path('api/vehiculos/', VehiculoList.as_view(), name='vehiculo-list'),
+    path('api/vehiculos/<int:pk>/', VehiculoDetail.as_view(), name='vehiculo-detail'),
+
+    # Citas
+    path('api/citas/', CitaList.as_view(), name='cita-list'),
+    path('api/citas/<int:pk>/', CitaDetail.as_view(), name='cita-detail'),
+    path('api/citas/<int:pk>/finalizar/', FinalizarCitaView.as_view(), name='cita-finalizar'),
+
+    # Historial y Mecánicos
+    path('api/historial/', HistorialList.as_view(), name='historial-list'),
+    path('api/mecanicos/', MecanicoList.as_view(), name='mecanico-list'),
+
+    # Admin Panel (React)
+    path('api/admin/marcas/', AdminMarcaList.as_view(), name='api-admin-marcas'),
+    path('api/admin/mecanicos-pendientes/', AdminMecanicosPendientes.as_view(), name='api-admin-mecanicos-pendientes'),
+    path('api/admin/aprobar-mecanico/<int:pk>/', AprobarMecanicoView.as_view(), name='api-aprobar-mecanico'),
 ]
