@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import Navbar from '../components/Navbar';
 
 function DashboardPage() {
     const navigate = useNavigate();
@@ -7,90 +8,128 @@ function DashboardPage() {
     const [usuario, setUsuario] = useState('');
 
     useEffect(() => {
-        // 1. Recuperamos los datos que guardamos al loguearnos
         const rolGuardado = localStorage.getItem('rol');
         const userId = localStorage.getItem('user_id'); 
         
-        // Si no hay token, lo mandamos al login (Protección básica)
         if (!localStorage.getItem('token')) {
             navigate('/login');
         }
 
         setRol(rolGuardado);
-        setUsuario(userId); // Por ahora mostramos el ID, luego podemos mejorar para mostrar el Nombre
+        setUsuario(userId);
     }, [navigate]);
 
-    const handleLogout = () => {
-        localStorage.clear(); // Borra todo
-        navigate('/login');
-    };
-
-    return (
-        <div className="container mt-5">
-            <div className="card shadow p-4">
-                <h1 className="text-center mb-4">Bienvenido al Taller Mecánico</h1>
-
-                <div className="user-welcome text-center">
-                    <h2>¡Hola, usuario #{usuario}!</h2>
-                    <p className="text-muted">Has iniciado sesión como: <strong>{rol}</strong></p>
-                </div>
-
-                <hr />
-
-                {/* --- MENÚ PARA CLIENTES --- */}
-                {rol === 'cliente' && (
-                    <div className="text-center">
-                        <div className="alert alert-info">
-                            Bienvenido a tu panel de cliente. Gestiona tus citas y vehículos.
-                        </div>
-                        <div className="d-grid gap-2 d-md-block">
-                            <Link to="/perfil" className="btn btn-primary m-2">Mi Panel</Link>
-                            <Link to="/vehiculos" className="btn btn-success m-2">Mis Vehículos</Link>
-                            <Link to="/agendar" className="btn btn-warning m-2">Agendar Cita</Link>
-                            <Link to="/mis-citas" className="btn btn-secondary m-2">Ver mis Citas</Link>
-                        </div>
-                    </div>
-                )}
-
-                {/* --- MENÚ PARA MECÁNICOS --- */}
-                {rol === 'mecanico' && (
-                    <div className="text-center">
-                        <div className="alert alert-warning">
-                            Bienvenido a tu panel de mecánico. Revisa tus trabajos.
-                        </div>
-                        <div className="d-grid gap-2 d-md-block">
-                            <Link to="/panel-mecanico" className="btn btn-primary m-2">Mi Panel de Trabajo</Link>
-                            <Link to="/historial-citas" className="btn btn-dark m-2">Historial de Citas</Link>
-                        </div>
-                    </div>
-                )}
-
-                {/* --- MENÚ PARA ADMINISTRADORES --- */}
-                {rol === 'administrador' && (
-                    <div className="text-center">
-                        <div className="alert alert-danger">
-                            Panel de Administración del Sistema.
-                        </div>
-                        <div className="d-grid gap-2 d-md-block">
-                            <Link to="/admin-panel" className="btn btn-danger m-2">Panel de Control</Link>
-                            <Link to="/todas-las-citas" className="btn btn-outline-dark m-2">Ver Todas las Citas</Link>
-                            {/* Enlace externo al Admin de Django */}
-                            <a href="http://127.0.0.1:8000/admin/" target="_blank" rel="noreferrer" className="btn btn-dark m-2">
-                                Ir al Admin Django
-                            </a>
-                        </div>
-                    </div>
-                )}
-
-                <hr className="mt-5" />
-                
-                <div className="text-center">
-                    <button className="btn btn-outline-danger" onClick={handleLogout}>
-                        Cerrar Sesión
-                    </button>
+    // --- COMPONENTE INTERNO PARA LAS TARJETAS ---
+    const MenuCard = ({ title, desc, img, link, color }) => (
+        <div className="col-md-4 mb-4" onClick={() => navigate(link)}>
+            <div className={`card card-hover shadow h-100 border-${color}`}>
+                <img src={img} className="card-img-top" alt={title} style={{height: '160px', objectFit: 'cover'}} />
+                <div className="card-body text-center">
+                    <h5 className={`card-title text-${color} fw-bold`}>{title}</h5>
+                    <p className="card-text small text-muted">{desc}</p>
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <>
+            <Navbar />
+            
+            <div className="container mt-5">
+                <div className="text-center mb-5">
+                    <h2 className="fw-bold">Panel de Control</h2>
+                    <p className="text-muted">
+                        Bienvenido, usuario #{usuario} ({rol})
+                    </p>
+                </div>
+
+                <div className="row justify-content-center">
+                    
+                    {/* --- MENÚ CLIENTE --- */}
+                    {rol === 'cliente' && (
+                        <>
+                            <MenuCard 
+                                title="Mis Vehículos" 
+                                desc="Registra y administra tus autos."
+                                img="https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=500&auto=format&fit=crop"
+                                link="/vehiculos"
+                                color="primary"
+                            />
+                            <MenuCard 
+                                title="Agendar Cita" 
+                                desc="Solicita una revisión para tu auto."
+                                img="https://images.unsplash.com/photo-1599256621730-d3ae22841fb4?w=500&auto=format&fit=crop"
+                                link="/agendar"
+                                color="success"
+                            />
+                            <MenuCard 
+                                title="Citas Pendientes" 
+                                desc="Revisa el estado actual (En proceso, etc)."
+                                img="https://images.unsplash.com/photo-1632823471565-1ec2a5258352?w=500&auto=format&fit=crop"
+                                link="/mis-citas"
+                                color="warning"
+                            />
+                            {/* AQUÍ ESTÁ EL HISTORIAL PARA EL CLIENTE */}
+                            <MenuCard 
+                                title="Historial de Reparaciones" 
+                                desc="Ver trabajos terminados y costos."
+                                img="https://images.unsplash.com/photo-1504222490245-4367b8b79d2b?w=500&auto=format&fit=crop"
+                                link="/historial-citas"
+                                color="info"
+                            />
+                        </>
+                    )}
+
+                    {/* --- MENÚ MECÁNICO --- */}
+                    {rol === 'mecanico' && (
+                        <>
+                            <MenuCard 
+                                title="Trabajos Pendientes" 
+                                desc="Acepta y gestiona reparaciones."
+                                img="https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?w=500&auto=format&fit=crop"
+                                link="/panel-mecanico"
+                                color="primary"
+                            />
+                            <MenuCard 
+                                title="Historial Completo" 
+                                desc="Consulta todas las reparaciones pasadas."
+                                img="https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=500&auto=format&fit=crop"
+                                link="/historial-citas"
+                                color="dark"
+                            />
+                            <MenuCard 
+                                title="Mis Especialidades" 
+                                desc="Configura qué marcas atiendes."
+                                img="https://images.unsplash.com/photo-1487754180451-c456f719a1fc?w=500&auto=format&fit=crop"
+                                link="/mi-perfil-mecanico"
+                                color="info"
+                            />
+                        </>
+                    )}
+
+                    {/* --- MENÚ ADMINISTRADOR --- */}
+                    {rol === 'administrador' && (
+                        <>
+                            <MenuCard 
+                                title="Administración" 
+                                desc="Aprobar mecánicos y crear marcas."
+                                img="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=500&auto=format&fit=crop"
+                                link="/admin-panel"
+                                color="danger"
+                            />
+                            <MenuCard 
+                                title="Reportes Globales" 
+                                desc="Ver todas las citas del sistema."
+                                img="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&auto=format&fit=crop"
+                                link="/todas-las-citas"
+                                color="dark"
+                            />
+                        </>
+                    )}
+                </div>
+            </div>
+        </>
     );
 }
 

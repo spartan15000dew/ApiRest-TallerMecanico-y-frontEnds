@@ -8,6 +8,7 @@ import MecanicoPanel from './pages/MecanicoPanel';
 import HistorialPage from './pages/HistorialPage'; 
 import VehiculosPage from './pages/VehiculosPage'; 
 import AdminPanel from './pages/AdminPanel';
+import PerfilMecanicoPage from './pages/PerfilMecanicoPage'; // <--- Importado
 
 // --- IMPORTAMOS LAS NUEVAS PÁGINAS ---
 import AgendarCitaPage from './pages/AgendarCitaPage';
@@ -66,9 +67,17 @@ function App() {
               <MecanicoPanel />
             </RutaProtegida>
         } />
+
         <Route path="/historial-citas" element={
+          <RutaProtegida rolesPermitidos={['mecanico', 'administrador', 'cliente']}> 
+            <HistorialPage />
+          </RutaProtegida>
+        } />
+        
+        {/* --- FALTABA ESTA RUTA --- */}
+        <Route path="/mi-perfil-mecanico" element={
             <RutaProtegida rolesPermitidos={['mecanico', 'administrador']}>
-              <HistorialPage />
+              <PerfilMecanicoPage />
             </RutaProtegida>
         } />
 

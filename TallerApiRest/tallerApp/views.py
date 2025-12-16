@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
+from django.db.models import Q
 
 from .models import *
 from .serializers import *
@@ -21,19 +22,18 @@ class CustomLoginView(ObtainAuthToken):
             user = serializer.validated_data['user']
             token, created = Token.objects.get_or_create(user=user)
             
-            # Lógica corregida de roles
+
             rol = ''
             
-            # 1. Prioridad: Si es superusuario/staff de Django -> 'administrador'
-            # (Esto soluciona el problema de que no te salga el menú)
+
             if user.is_staff:
                 rol = 'administrador'
             
-            # 2. Si tiene perfil de mecánico -> 'mecanico'
+
             elif hasattr(user, 'perfil_mecanico'): 
                 rol = 'mecanico'
             
-            # 3. Si tiene perfil de cliente -> 'cliente'
+
             elif hasattr(user, 'perfil_cliente'): 
                 rol = 'cliente'
 
@@ -125,19 +125,31 @@ class CitaList(APIView):
         user = request.user
         citas = Cita.objects.all()
 
-        
         if hasattr(user, 'perfil_cliente'):
             citas = citas.filter(vehiculo__cliente=user.perfil_cliente)
+        
         elif hasattr(user, 'perfil_mecanico'):
-            citas = citas.filter(mecanico_asignado=user.perfil_mecanico)
+            citas = citas.filter(
+                Q(mecanico_asignado=user.perfil_mecanico) | 
+                Q(mecanico_asignado__isnull=True)
+            )
         
-        
-        estado = request.query_params.get('estado')
-        if estado:
-            citas = citas.filter(estado=estado)
+
+        estados = request.query_params.getlist('estado')
+        if estados:
+            citas = citas.filter(estado__in=estados)
+            
+        citas = citas.order_by('fecha_hora')
 
         serializer = CitaSerializer(citas, many=True)
         return Response(serializer.data)
+
+    def post(self, request):
+        serializer = CitaSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request):
         serializer = CitaSerializer(data=request.data)
@@ -271,3 +283,64 @@ class AprobarMecanicoView(APIView):
         mecanico.aprobado = True
         mecanico.save()
         return Response({"mensaje": f"Mecánico {mecanico.usuario.username} aprobado exitosamente."})
+
+class AceptarCitaView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        cita = get_object_or_404(Cita, pk=pk)
+
+
+        if not hasattr(request.user, 'perfil_mecanico'):
+             return Response({"error": "Solo mecánicos pueden realizar esta acción"}, status=403)
+
+
+        if cita.mecanico_asignado and cita.mecanico_asignado != request.user.perfil_mecanico:
+             return Response({"error": "Esta cita ya pertenece a otro mecánico."}, status=403)
+
+        with transaction.atomic():
+
+            if not cita.mecanico_asignado:
+                cita.mecanico_asignado = request.user.perfil_mecanico
+            
+
+            cita.estado = 'En Progreso'
+            cita.save()
+
+        return Response({"mensaje": "Cita aceptada. ¡A trabajar!"})
+
+class MiPerfilMecanicoView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request.user, 'perfil_mecanico'):
+            return Response({"error": "No eres mecánico"}, status=403)
+        
+        mecanico = request.user.perfil_mecanico
+        serializer = MecanicoSerializer(mecanico)
+        return Response(serializer.data)
+
+    def patch(self, request):
+
+        if not hasattr(request.user, 'perfil_mecanico'):
+            return Response({"error": "No eres mecánico"}, status=403)
+        
+        mecanico = request.user.perfil_mecanico
+        
+        # El serializer espera una lista de IDs en 'marcas', ej: [1, 2]
+        serializer = MecanicoSerializer(mecanico, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class MarcaListPublicView(APIView):
+
+    permission_classes = [IsAuthenticated] # <--- Solo requiere estar logueado
+
+    def get(self, request):
+        marcas = Marca.objects.all()
+        serializer = MarcaSerializer(marcas, many=True)
+        return Response(serializer.data)
